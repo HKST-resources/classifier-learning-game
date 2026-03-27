@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>量詞小學堂</title>
+    <style>
+        :root {
+            --primary: #FF9F43;
+            --secondary: #48DBFB;
+            --success: #1DD1A1;
+            --bg: #F7F1E3;
+        }
+        body {
+            font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 25px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 600px;
+            min-height: 400px;
+        }
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 15px;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            margin: 10px;
+            transition: transform 0.2s;
+            font-weight: bold;
+        }
+        button:active { transform: scale(0.95); }
+        .btn-main { background-color: var(--primary); color: white; }
+        .btn-sub { background-color: var(--secondary); color: white; }
+        .btn-audio { background-color: #eee; font-size: 0.9rem; }
+        .btn-tick { background-color: var(--success); color: white; font-size: 2rem; }
+
+        .hidden { display: none; }
+        .item-display { font-size: 4rem; margin: 20px; }
+        .instruction-text { font-size: 1.3rem; color: #333; margin-bottom: 20px; line-height: 1.6; }
+        .star-container { color: #f1c40f; font-size: 2rem; margin: 10px; }
+        .category-icons { font-size: 3rem; margin: 10px; display: flex; justify-content: center; gap: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="menu">
+        <h1>量詞小學堂</h1>
+        <button class="btn-main" onclick="showLearnSelection()">學習量詞</button>
+        <button class="btn-sub" onclick="startChallenge()">量詞挑戰站</button>
+    </div>
+
+    <div id="selection" class="hidden">
+        <h2>想學邊個量詞？</h2>
+        <div id="classifier-list"></div>
+        <button onclick="goBack()">返回首頁</button>
+    </div>
+
+    <div id="teaching" class="hidden">
+        <h2 id="teaching-title"></h2>
+        <div id="teaching-icons" class="category-icons"></div>
+        <p id="teaching-text" class="instruction-text"></p>
+        <button class="btn-main" onclick="startPractice()">開始練習</button>
+    </div>
+
+    <div id="gameplay" class="hidden">
+        <div id="progress-header">
+            <span id="round-num">1/10</span>
+            <div id="stars" class="star-container"></div>
+        </div>
+        <div id="question-area">
+            <div id="visual-item" class="item-display"></div>
+            <div id="label-text" class="instruction-text"></div>
+        </div>
+        <div id="controls">
+            </div>
+        <button style="margin-top:20px" onclick="goBack()">退出</button>
+    </div>
+</div>
+
+<script>
+    const assets = {
+        "個": {
+            instruction: "一個個多數都係好大個，或者係圓轆轆嘅，例如一個蘋果、一個西瓜。而家你試吓用「個」依個字，數一數以下物品啦！",
+            icons: ["🍎", "🍉", "🏀"],
+            items: ["蘋果", "西瓜", "橙", "檸檬", "小朋友", "老師", "書包", "波", "籃球", "麵包", "薄餅"],
+            visuals: {"蘋果":"🍎","西瓜":"🍉","橙":"🍊","檸檬":"🍋","小朋友":"👦","老師":"👩‍🏫","書包":"🎒","波":"⚽","籃球":"🏀","麵包":"🍞","薄餅":"🍕"}
+        },
+        "隻": {
+            instruction: "動物、餐具，同有啲身體部位都係一「隻隻」嘅，而家你試吓用「隻」依個字，數一數以下物品啦！",
+            icons: ["🐶", "🍴", "👂"],
+            items: ["貓", "狗", "豬", "兔仔", "匙羹", "叉", "碗", "碟", "杯", "眼", "手", "耳仔", "腳", "手指"],
+            visuals: {"貓":"🐱","狗":"🐶","豬":"🐷","兔仔":"🐰","匙羹":"🥄","叉":"🍴","碗":"🥣","碟":"🍽️","杯":"🥛","眼":"👀","手":"✋","耳仔":"👂","腳":"🦶","手指":"☝️"}
+        }
+    };
+
+    let currentMode = ''; 
+    let currentClassifier = '';
+    let currentRound = 0;
+    let stars = 0;
+    let practiceItems = [];
+
+    function speak(text) {
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'zh-HK';
+        window.speechSynthesis.speak(msg);
+    }
+
+    function goBack() {
+        document.querySelectorAll('.container > div').forEach(div => div.classList.add('hidden'));
+        document.getElementById('menu').classList.remove('hidden');
+        window.speechSynthesis.cancel();
+    }
+
+    // --- LEARNING MODE ---
+    function showLearnSelection() {
+        document.getElementById('menu').classList.add('hidden');
+        document.getElementById('selection').classList.remove('hidden');
+        const list = document.getElementById('classifier-list');
+        list.innerHTML = '';
+        Object.keys(assets).forEach(c => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-main';
+            btn.innerText = c;
+            btn.onclick = () => loadTeaching(c);
+            list.appendChild(btn);
+        });
+    }
+
+    function loadTeaching(c) {
+        currentClassifier = c;
+        document.getElementById('selection').classList.add('hidden');
+        document.getElementById('teaching').classList.remove('hidden');
+        document.getElementById('teaching-title').innerText = `學習「${c}」`;
+        document.getElementById('teaching-text').innerText = assets[c].instruction;
+        
+        const iconsDiv = document.getElementById('teaching-icons');
+        iconsDiv.innerHTML = assets[c].icons.join(' ');
+        
+        speak(assets[c].instruction);
+    }
+
+    function startPractice() {
+        currentMode = 'practice';
+        currentRound = 1;
+        document.getElementById('teaching').classList.add('hidden');
+        document.getElementById('gameplay').classList.remove('hidden');
+        
+        // Prepare 10 items
+        let allItems = [...assets[currentClassifier].items];
+        practiceItems = [];
+        for(let i=0; i<10; i++) {
+            const idx = Math.floor(Math.random() * allItems.length);
+            practiceItems.push(allItems.splice(idx, 1)[0]);
+        }
+        renderRound();
+    }
+
+    // --- CHALLENGE MODE ---
+    function startChallenge() {
+        currentMode = 'challenge';
+        currentRound = 1;
+        stars = 0;
+        document.getElementById('stars').innerText = '';
+        document.getElementById('menu').classList.add('hidden');
+        document.getElementById('gameplay').classList.remove('hidden');
+        
+        // Mix items from all classifiers
+        practiceItems = [];
+        const keys = Object.keys(assets);
+        for(let i=0; i<8; i++) {
+            const randomC = keys[Math.floor(Math.random() * keys.length)];
+            const randomItem = assets[randomC].items[Math.floor(Math.random() * assets[randomC].items.length)];
+            practiceItems.push({ name: randomItem, correct: randomC });
+        }
+        renderRound();
+    }
+
+    function renderRound() {
+        const controls = document.getElementById('controls');
+        const visual = document.getElementById('visual-item');
+        const label = document.getElementById('label-text');
+        const roundText = document.getElementById('round-num');
+        controls.innerHTML = '';
+        
+        if (currentMode === 'practice') {
+            const itemName = practiceItems[currentRound - 1];
+            const qty = currentRound <= 5 ? 1 : Math.floor(Math.random() * 4) + 2;
+            roundText.innerText = `${currentRound} / 10`;
+            visual.innerText = assets[currentClassifier].visuals[itemName].repeat(qty);
+            label.innerText = `${qty > 1 ? qty : ''}${currentClassifier}${itemName}`;
+            
+            const tick = document.createElement('button');
+            tick.className = 'btn-tick';
+            tick.innerHTML = '✔';
+            tick.onclick = nextRound;
+            controls.appendChild(tick);
+        } else {
+            const itemObj = practiceItems[currentRound - 1];
+            roundText.innerText = `${currentRound} / 8`;
+            visual.innerText = assets[itemObj.correct].visuals[itemObj.name];
+            label.innerText = itemObj.name;
+
+            Object.keys(assets).forEach(c => {
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'inline-block';
+                
+                const audioBtn = document.createElement('button');
+                audioBtn.className = 'btn-audio';
+                audioBtn.innerText = '🔊';
+                audioBtn.onclick = () => speak(c);
+                
+                const btn = document.createElement('button');
+                btn.className = 'btn-main';
+                btn.innerText = c;
+                btn.onclick = () => checkAnswer(c, itemObj.correct);
+                
+                wrapper.appendChild(audioBtn);
+                wrapper.appendChild(btn);
+                controls.appendChild(wrapper);
+            });
+        }
+    }
+
+    function checkAnswer(chosen, correct) {
+        if (chosen === correct) {
+            stars++;
+            document.getElementById('stars').innerText = '⭐'.repeat(stars);
+            speak("答啱喇！");
+            setTimeout(nextRound, 500);
+        } else {
+            speak("試下第個？");
+        }
+    }
+
+    function nextRound() {
+        currentRound++;
+        const max = currentMode === 'practice' ? 10 : 8;
+        if (currentRound > max) {
+            speak("完成！你真係叻！");
+            alert("遊戲結束！");
+            goBack();
+        } else {
+            renderRound();
+        }
+    }
+</script>
+
+</body>
+</html>
